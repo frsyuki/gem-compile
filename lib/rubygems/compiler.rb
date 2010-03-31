@@ -73,7 +73,7 @@ class Gem::Compiler
 
 				File.open('gem_make.out', 'wb') { |f| f.puts results }
 
-				mesage = <<-EOF
+				message = <<-EOF
 ERROR: Failed to build gem native extension."
 
 				#{results}
@@ -81,7 +81,7 @@ ERROR: Failed to build gem native extension."
 Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
 				EOF
 
-raise ExtensionBuildError, message
+raise Gem::Exception, message
 			ensure
 				Dir.chdir start_dir
 			end
