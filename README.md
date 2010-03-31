@@ -33,7 +33,7 @@ It creates binary gems from gems with extensions.
 With above command line, msgpack-0.3.4-x86-mingw32.gem file will be created on MinGW environment.
 
     $ gem compile --platform mswin32 msgpack-0.3.4.gem
-With above command line, msgpack-0.3.4-mswin32.gem file will be created.
+With above command line, msgpack-0.3.4-x86-mswin32.gem file will be created.
 
 
 ## License
