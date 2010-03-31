@@ -1,12 +1,12 @@
 gem-compile
 ===========
-Create binary gems from gems with extensions.
+A RubyGems command plugin that creates pre-compiled binary gems from gems with extensions.
 
 
 ## Overview
 
-gem-compile is a RubyGem command plugin that adds 'complie' command.
-It creates binary gems from gems with extensions.
+gem-compile is a RubyGems command plugin that adds 'compile' command.
+It creates pre-compiled binary gems from gems with extensions.
 
 
 ## Installation
@@ -30,10 +30,10 @@ It creates binary gems from gems with extensions.
 ## Example
 
     $ gem compile msgpack-0.3.4.gem
-With above command line, msgpack-0.3.4-x86-mingw32.gem file will be created on MinGW environment.
+With above command line, **msgpack-0.3.4-x86-mingw32.gem** file will be created on MinGW environment.
 
     $ gem compile --platform mswin32 msgpack-0.3.4.gem
-With above command line, msgpack-0.3.4-x86-mswin32.gem file will be created.
+With above command line, **msgpack-0.3.4-x86-mswin32.gem** file will be created.
 
 
 ## License
