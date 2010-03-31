@@ -6,12 +6,15 @@ Create binary gems from gems with extensions.
 ## Overview
 
 gem-compile is a RubyGem command plugin that adds 'complie' command.
-The command creates binary gems from gems with extensions.
+It creates binary gems from gems with extensions.
 
 
 ## Installation
 
-    gem install gem-compile
+    $ gem build gem-compile.gemspec
+    $ gem install gem-compile-*.gem
+    or
+    $ gem install gem-compile
 
 
 ## Usage
