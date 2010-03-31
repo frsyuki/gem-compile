@@ -1,0 +1,162 @@
+#!/usr/bin/env ruby
+#
+# gem-compile
+#
+# Copyright (c) 2010 FURUHASHI Sadayuki
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+require 'optparse'
+require 'fileutils'
+
+args = ARGV.dup
+
+if ARGV.include?('--')
+	build_args = args[args.index("--") + 1...args.length]
+	args = args[0...args.index("--")]
+end
+
+config = {
+	:platform => nil
+}
+
+op = OptionParser.new
+op.on('-p', '--platform PLATFORM',
+			'Output platform name') {|s| config[:platform] = s }
+
+op.banner += " GEMFILE -- --build-flags"
+
+op.parse!(args)
+
+if args.length != 1
+	puts op.to_s
+	exit 0
+end
+
+
+require 'rubygems/format'
+require 'rubygems/ext'
+require 'rubygems/builder'
+
+Gem::Command.build_args = build_args if build_args
+
+gem = args.first
+platform = config[:platform] || Gem::Platform::RUBY
+
+
+gem_dir = "#{File.basename(gem)}.build"
+gem_dir = File.expand_path(gem_dir)
+
+begin
+	format = Gem::Format.from_file_by_path(gem)
+rescue => ex
+	puts ex
+	exit 1
+end
+
+spec = format.spec
+
+if spec.extensions.empty?
+	puts "There are no extensions to build."
+	exit 1
+end
+
+if spec.platform != Gem::Platform::RUBY
+	puts "The package seems to be built already."
+	exit 1
+end
+
+
+format.file_entries.each do |entry, file_data|
+	path = entry['path'].untaint
+  path = File.expand_path File.join(gem_dir, path)
+
+	FileUtils.rm_rf(path) if File.exists?(path)
+	FileUtils.mkdir_p File.dirname(path)
+
+	File.open(path, "wb") do |out|
+		out.write file_data
+	end
+
+	FileUtils.chmod entry['mode'], path
+
+	puts path
+end
+
+ran_rake = false
+start_dir = Dir.pwd
+dest_path = File.join gem_dir, spec.require_paths.first
+
+spec.extensions.each do |extension|
+	break if ran_rake
+	results = []
+
+	builder = case extension
+						when /extconf/ then
+							Gem::Ext::ExtConfBuilder
+						when /configure/ then
+							Gem::Ext::ConfigureBuilder
+						when /rakefile/i, /mkrf_conf/i then
+							ran_rake = true
+							Gem::Ext::RakeBuilder
+						else
+							results = ["No builder for extension '#{extension}'"]
+							nil
+						end
+
+	begin
+		Dir.chdir File.join(gem_dir, File.dirname(extension))
+		results = builder.build(extension, gem_dir, dest_path, results)
+
+		puts results.join("\n")
+
+	rescue => ex
+		results = results.join "\n"
+
+		File.open('gem_make.out', 'wb') { |f| f.puts results }
+
+		mesage = <<-EOF
+ERROR: Failed to build gem native extension."
+
+#{results}
+
+Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
+		EOF
+
+		puts message
+	ensure
+		Dir.chdir start_dir
+	end
+
+end
+	
+spec.extensions = []
+
+built_files = Dir.glob("#{dest_path}/**/*")
+basedir = File.join gem_dir, ""
+built_files.each {|path| path.slice!(0, basedir.length) }
+
+spec.files = (spec.files + built_files).sort.uniq
+spec.platform = platform if platform
+
+Dir.chdir gem_dir
+out_fname = Gem::Builder.new(spec).build
+
+FileUtils.mv(out_fname, start_dir)
+
