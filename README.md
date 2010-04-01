@@ -13,18 +13,19 @@ It creates pre-compiled binary gems from gems with extensions.
 
     $ gem build gem-compile.gemspec
     $ gem install gem-compile-*.gem
-    or
+or
     $ gem install gem-compile
 
 
 ## Usage
 
     $ gem compile [options] GEMFILE -- --build-flags
-    or
+or
     $ gem-compile [options] GEMFILE -- --build-flags
-    
-    options:
-      -p, --platform PLATFORM          Output platform name
+
+options:
+    -p, --platform PLATFORM          Output platform name
+    -f, --fat VERSION:RUBY,...       Create fat binary (e.g. --fat 1.8:ruby,1.9:ruby19)
 
 
 ## Example
@@ -34,6 +35,9 @@ With above command line, **msgpack-0.3.4-x86-mingw32.gem** file will be created 
 
     $ gem compile --platform mswin32 msgpack-0.3.4.gem
 With above command line, **msgpack-0.3.4-x86-mswin32.gem** file will be created.
+
+    $ gem compile --platform mswin32 --fat 1.8:/Ruby/bin/ruby,1.9:/Ruby19/bin/ruby msgpack-0.3.4.gem
+With --fat option, it creates a fat-binary. It's installable on both ruby-1.8 and ruby-1.9.
 
 
 ## License
