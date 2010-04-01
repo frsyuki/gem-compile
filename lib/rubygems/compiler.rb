@@ -4,12 +4,13 @@ require 'rubygems/builder'
 require 'rubygems/exceptions'
 require 'rubygems/user_interaction'
 require 'fileutils'
+require 'shellwords'
 
 class Gem::Compiler
 
 	extend Gem::UserInteraction
 
-	def self.compile(gem, platform = Gem::Platform::CURRENT)
+	def self.compile(gem, platform = Gem::Platform::CURRENT, fat_commands = {})
 		gem_dir = "#{File.basename(gem)}.build"
 		gem_dir = File.expand_path(gem_dir)
 
@@ -43,7 +44,7 @@ class Gem::Compiler
 
 		ran_rake = false
 		start_dir = Dir.pwd
-		dest_paths = []
+		built_paths = []
 
 		spec.extensions.each do |extension|
 			break if ran_rake
@@ -59,24 +60,64 @@ class Gem::Compiler
 									Gem::Ext::RakeBuilder
 								else
 									results = ["No builder for extension '#{extension}'"]
-									nil
+									raise results.last
 								end
 
 			begin
 				dest_path = File.join(gem_dir, File.dirname(extension))
-				dest_paths << dest_path
 				Dir.chdir dest_path
-				results = builder.build(extension, gem_dir, dest_path, results)
+
+				if fat_commands.empty?
+					results = builder.build(extension, gem_dir, dest_path, results)
+
+					built_paths.concat Dir.glob("#{dest_path}/**/*")
+
+				else
+					ext_files = []
+
+					fat_commands.each_pair do |version, command|
+						version_path = File.join(dest_path, version)
+
+						script = <<-EOF
+require 'rubygems/ext'
+puts #{builder}.build(#{extension.dump},#{gem_dir.dump},#{version_path.dump}, [])
+						EOF
+
+						result = `#{command} -e #{Shellwords.escape script}`
+						results << result
+						if $? != 0
+							raise result
+						end
+
+						paths = Dir.glob("#{version_path}/**/*")
+						files = paths.map {|path| path[File.join(version_path,'').length..-1] }
+						ext_files.concat files
+
+						built_paths.concat paths
+					end
+
+					ext_files.uniq.each do |ext_name|
+						ext_basename = ext_name.sub(/\.[^\.]*$/, '')
+						rb_path = File.join(dest_path, "#{ext_basename}.rb")
+						File.open(rb_path, "w") do |f|
+							f.write <<-EOF
+require File.join File.dirname(__FILE__), RUBY_VERSION.match(/\\d+\\.\\d+/)[0], #{ext_basename.dump}
+							EOF
+						end
+						built_paths << rb_path
+					end
+
+				end
 
 				say results.join("\n") if Gem.configuration.really_verbose
 
 			rescue => ex
 				results = results.join "\n"
 
-				File.open('gem_make.out', 'wb') { |f| f.puts results }
+				File.open('gem_make.out', 'wb') {|f| f.puts results }
 
 				message = <<-EOF
-ERROR: Failed to build gem native extension."
+ERROR: Failed to build gem native extension.
 
 				#{results}
 
@@ -91,10 +132,7 @@ Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
 
 		spec.extensions = []
 
-		basedir = File.join gem_dir, ""
-		built_files = dest_paths.map do |dest_path|
-			Dir.glob("#{dest_path}/**/*").map {|path| path[basedir.length..-1] }
-		end.flatten.uniq
+		built_files = built_paths.map {|path| path[File.join(gem_dir,'').length..-1] }
 		built_files.reject! {|path| path =~ /\.o$/ }  # FIXME
 
 		spec.files = (spec.files + built_files).sort.uniq
