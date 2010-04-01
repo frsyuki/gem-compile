@@ -43,7 +43,7 @@ class Gem::Compiler
 
 		ran_rake = false
 		start_dir = Dir.pwd
-		dest_path = File.join gem_dir, spec.require_paths.first
+		dest_paths = []
 
 		spec.extensions.each do |extension|
 			break if ran_rake
@@ -63,7 +63,9 @@ class Gem::Compiler
 								end
 
 			begin
-				Dir.chdir File.join(gem_dir, File.dirname(extension))
+				dest_path = File.join(gem_dir, File.dirname(extension))
+				dest_paths << dest_path
+				Dir.chdir dest_path
 				results = builder.build(extension, gem_dir, dest_path, results)
 
 				say results.join("\n") if Gem.configuration.really_verbose
@@ -81,7 +83,7 @@ ERROR: Failed to build gem native extension."
 Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
 				EOF
 
-raise Gem::Exception, message
+				raise Gem::Exception, message
 			ensure
 				Dir.chdir start_dir
 			end
@@ -89,9 +91,11 @@ raise Gem::Exception, message
 
 		spec.extensions = []
 
-		built_files = Dir.glob("#{dest_path}/**/*")
 		basedir = File.join gem_dir, ""
-		built_files.each {|path| path.slice!(0, basedir.length) }
+		built_files = dest_paths.map do |dest_path|
+			Dir.glob("#{dest_path}/**/*").map {|path| path[basedir.length..-1] }
+		end.flatten.uniq
+		built_files.reject! {|path| path =~ /\.o$/ }  # FIXME
 
 		spec.files = (spec.files + built_files).sort.uniq
 		spec.platform = platform if platform

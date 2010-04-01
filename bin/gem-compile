@@ -57,7 +57,7 @@ require 'rubygems/builder'
 Gem::Command.build_args = build_args if build_args
 
 gem = args.first
-platform = config[:platform] || Gem::Platform::RUBY
+platform = config[:platform] || Gem::Platform::CURRENT
 
 
 gem_dir = "#{File.basename(gem)}.build"
@@ -101,7 +101,7 @@ end
 
 ran_rake = false
 start_dir = Dir.pwd
-dest_path = File.join gem_dir, spec.require_paths.first
+dest_paths = []
 
 spec.extensions.each do |extension|
 	break if ran_rake
@@ -121,7 +121,9 @@ spec.extensions.each do |extension|
 						end
 
 	begin
-		Dir.chdir File.join(gem_dir, File.dirname(extension))
+		dest_path = File.join(gem_dir, File.dirname(extension))
+		dest_paths << dest_path
+		Dir.chdir dest_path
 		results = builder.build(extension, gem_dir, dest_path, results)
 
 		puts results.join("\n")
@@ -148,9 +150,11 @@ end
 	
 spec.extensions = []
 
-built_files = Dir.glob("#{dest_path}/**/*")
 basedir = File.join gem_dir, ""
-built_files.each {|path| path.slice!(0, basedir.length) }
+built_files = dest_paths.map do |dest_path|
+	Dir.glob("#{dest_path}/**/*").map {|path| path[basedir.length..-1] }
+end.flatten.uniq
+built_files.reject! {|path| path =~ /\.o$/ }  # FIXME
 
 spec.files = (spec.files + built_files).sort.uniq
 spec.platform = platform if platform
