@@ -79,11 +79,11 @@ class Gem::Compiler
 						version_path = File.join(dest_path, version)
 
 						script = <<-EOF
-require 'rubygems/ext'
-puts #{builder}.build(#{extension.dump},#{gem_dir.dump},#{version_path.dump}, [])
+require "rubygems/ext"; puts #{builder}.build(#{extension.dump},#{gem_dir.dump},#{version_path.dump}, [])
 						EOF
+						script.strip!
 
-						result = `#{command} -e #{Shellwords.escape script}`
+						result = `#{command} -e '#{script}'`
 						results << result
 						if $? != 0
 							raise result
@@ -94,6 +94,8 @@ puts #{builder}.build(#{extension.dump},#{gem_dir.dump},#{version_path.dump}, []
 						ext_files.concat files
 
 						built_paths.concat paths
+
+						FileUtils.rm Dir.glob("**/*.o")    # FIXME
 					end
 
 					ext_files.uniq.each do |ext_name|
