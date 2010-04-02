@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
 	s.platform = Gem::Platform::RUBY
 	s.name = "gem-compile"
-	s.version = "0.0.3"
+	s.version = "0.0.4"
 	s.summary = "gem-compile, create binary gems from gems with extensions"
 	s.author = "FURUHASHI Sadayuki"
 	s.email = "frsyuki@users.sourceforge.jp"

@@ -99,6 +99,9 @@ if fat
 	end
 end
 
+dest_path = File.join(gem_dir, spec.require_paths.first)
+FileUtils.rm_rf(dest_path) if File.exists?(dest_path)
+
 format.file_entries.each do |entry, file_data|
 	path = entry['path'].untaint
 	path = File.expand_path File.join(gem_dir, path)
@@ -117,7 +120,6 @@ end
 
 ran_rake = false
 start_dir = Dir.pwd
-built_paths = []
 
 spec.extensions.each do |extension|
 	break if ran_rake
@@ -137,51 +139,25 @@ spec.extensions.each do |extension|
 						end
 
 	begin
-		dest_path = File.join(gem_dir, File.dirname(extension))
+		build_dir = File.join(gem_dir, File.dirname(extension))
 		extension = File.expand_path(extension)
-		Dir.chdir dest_path
+		Dir.chdir build_dir
 
 		if fat_commands.empty?
 			results = builder.build(extension, gem_dir, dest_path, results)
 
-			built_paths.concat Dir.glob("#{dest_path}/**/*")
-
 		else
-			ext_files = []
-
 			fat_commands.each_pair do |version, command|
-				version_path = File.join(dest_path, version)
+				dest_version_path = File.join(dest_path, version)
 
-				script = <<-EOF
-require 'rubygems/ext'
-puts #{builder}.build(#{extension.dump},#{gem_dir.dump},#{version_path.dump}, [])
-				EOF
+				script = %'require "rubygems/ext"; puts #{builder}.build(#{extension.dump},#{gem_dir.dump},#{dest_version_path.dump}, [])'
 
-				result = `#{command} -e #{Shellwords.escape script}`
+				result = `#{command} -e '#{script}'`
 				results << result
-				if $? != 0
-					raise result
-				end
+				raise result if $? != 0
 
-				paths = Dir.glob("#{version_path}/**/*")
-				files = paths.map {|path| path[File.join(version_path,'').length..-1] }
-				ext_files.concat files
-
-				built_paths.concat paths
+				FileUtils.rm Dir.glob("**/*.o")    # FIXME
 			end
-
-			ext_files.uniq.each do |ext_name|
-				ext_basename = ext_name.sub(/\.[^\.]*$/, '')
-				rb_path = File.join(dest_path, "#{ext_basename}.rb")
-				File.open(rb_path, "w") do |f|
-					f.write <<-EOF
-require File.join File.dirname(__FILE__), RUBY_VERSION.match(/\\d+\\.\\d+/)[0], #{ext_basename.dump}
-					EOF
-				end
-
-				built_paths << rb_path
-			end
-
 		end
 
 		puts results.join("\n")
@@ -200,14 +176,33 @@ Results logged to #{File.join(Dir.pwd, 'gem_make.out')}
 		EOF
 
 		puts message
+
 	ensure
 		Dir.chdir start_dir
 	end
-
 end
 	
 spec.extensions = []
 
+unless fat_commands.empty?
+	fat_ext_files = fat_commands.keys.uniq.map do |version|
+		dest_version_path = File.join(dest_path, version)
+		fat_ext_paths = Dir.glob("#{dest_version_path}/**/*")
+		fat_ext_paths.map {|path| path[File.join(dest_version_path,'').length..-1] }
+	end.flatten.uniq
+
+	fat_ext_files.uniq.each do |ext_file|
+		ext_name = ext_file.sub(/\.[^\.]*$/, '')
+		rb_path = File.join(dest_path, "#{ext_name}.rb")
+		File.open(rb_path, "w") do |f|
+			f.write <<-EOF
+require File.join File.dirname(__FILE__), RUBY_VERSION.match(/\\d+\\.\\d+/)[0], #{ext_name.dump}
+			EOF
+		end
+	end
+end
+
+built_paths = Dir.glob("#{dest_path}/**/*")
 built_files = built_paths.map {|path| path[File.join(gem_dir,'').length..-1] }
 built_files.reject! {|path| path =~ /\.o$/ }  # FIXME
 
