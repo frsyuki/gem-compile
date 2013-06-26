@@ -1,6 +1,5 @@
-require 'rubygems/format'
+require 'rubygems/package'
 require 'rubygems/ext'
-require 'rubygems/builder'
 require 'rubygems/exceptions'
 require 'rubygems/user_interaction'
 require 'fileutils'
@@ -14,7 +13,7 @@ class Gem::Compiler
 		gem_dir = "#{File.basename(gem)}.build"
 		gem_dir = File.expand_path(gem_dir)
 
-		format = Gem::Format.from_file_by_path(gem)
+		format = Gem::Package.new(gem)
 
 		spec = format.spec
 
@@ -29,21 +28,7 @@ class Gem::Compiler
 		dest_path = File.join(gem_dir, spec.require_paths.first)
 		FileUtils.rm_rf(dest_path) if File.exists?(dest_path)
 
-		format.file_entries.each do |entry, file_data|
-			path = entry['path'].untaint
-			path = File.expand_path File.join(gem_dir, path)
-
-			FileUtils.rm_rf(path) if File.exists?(path)
-			FileUtils.mkdir_p File.dirname(path)
-
-			File.open(path, "wb") do |out|
-				out.write file_data
-			end
-
-			FileUtils.chmod entry['mode'], path
-
-			say path if Gem.configuration.really_verbose
-		end
+		format.extract_files gem_dir
 
 		ran_rake = false
 		start_dir = Dir.pwd
@@ -140,7 +125,7 @@ require File.join File.dirname(__FILE__), RUBY_VERSION.match(/\\d+\\.\\d+/)[0], 
 
 		Dir.chdir gem_dir
 		begin
-			out_fname = Gem::Builder.new(spec).build
+			out_fname = Gem::Package.build(spec)
 			FileUtils.mv(out_fname, start_dir)
 		ensure
 			Dir.chdir start_dir
