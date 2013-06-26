@@ -53,9 +53,8 @@ if args.length != 1
 end
 
 
-require 'rubygems/format'
+require 'rubygems/package'
 require 'rubygems/ext'
-require 'rubygems/builder'
 require 'shellwords'
 
 Gem::Command.build_args = build_args if build_args
@@ -69,7 +68,7 @@ gem_dir = "#{File.basename(gem)}.build"
 gem_dir = File.expand_path(gem_dir)
 
 begin
-	format = Gem::Format.from_file_by_path(gem)
+	format = Gem::Package.new(gem)
 rescue => ex
 	puts ex
 	exit 1
@@ -102,21 +101,7 @@ end
 dest_path = File.join(gem_dir, spec.require_paths.first)
 FileUtils.rm_rf(dest_path) if File.exists?(dest_path)
 
-format.file_entries.each do |entry, file_data|
-	path = entry['path'].untaint
-	path = File.expand_path File.join(gem_dir, path)
-
-	FileUtils.rm_rf(path) if File.exists?(path)
-	FileUtils.mkdir_p File.dirname(path)
-
-	File.open(path, "wb") do |out|
-		out.write file_data
-	end
-
-	FileUtils.chmod entry['mode'], path
-
-	puts path
-end
+format.extract_files gem_dir
 
 ran_rake = false
 start_dir = Dir.pwd
@@ -210,7 +195,7 @@ spec.files = (spec.files + built_files).sort.uniq
 spec.platform = platform if platform
 
 Dir.chdir gem_dir
-out_fname = Gem::Builder.new(spec).build
+out_fname = Gem::Package.build(spec)
 
 FileUtils.mv(out_fname, start_dir)
 
