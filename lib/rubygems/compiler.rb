@@ -10,7 +10,7 @@ class Gem::Compiler
 
 	extend Gem::UserInteraction
 
-	def self.compile(gem, platform = Gem::Platform::CURRENT, fat_commands = {})
+	def self.compile(gem, platform = Gem::Platform::CURRENT, fat_commands = {}, add_files = [])
 		gem_dir = "#{File.basename(gem)}.build"
 		gem_dir = File.expand_path(gem_dir)
 
@@ -135,7 +135,24 @@ require File.join File.dirname(__FILE__), RUBY_VERSION.match(/\\d+\\.\\d+/)[0], 
 		built_files = built_paths.map {|path| path[File.join(gem_dir,'').length..-1] }
 		built_files.reject! {|path| path =~ /\.o$/ }  # FIXME
 
-		spec.files = (spec.files + built_files).sort.uniq
+		result_add_files = []
+
+		Dir.chdir gem_dir
+		begin
+			add_files.each do |f_or_d|
+				if File.file? f_or_d
+					result_add_files << f_or_d
+				else
+					Find.find(f_or_d) do |fpath|
+						result_add_files << fpath if File.file? fpath
+					end
+				end
+			end
+		ensure
+			Dir.chdir start_dir
+		end
+
+		spec.files = (spec.files + built_files + result_add_files).sort.uniq
 		spec.platform = platform if platform
 
 		Dir.chdir gem_dir

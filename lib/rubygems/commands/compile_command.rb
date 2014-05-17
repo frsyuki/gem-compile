@@ -5,7 +5,8 @@ class Gem::Commands::CompileCommand < Gem::Command
 	def initialize
 		super 'compile', 'Create binary gems from gems with extensions',
 			:platform => Gem::Platform::CURRENT,
-			:fat => ""
+			:fat => "",
+			:add_files => []
 
 		add_option('-p', '--platform PLATFORM', 'Output platform name') do |value, options|
 			options[:platform] = value
@@ -13,6 +14,10 @@ class Gem::Commands::CompileCommand < Gem::Command
 
 		add_option('-f', '--fat VERSION:RUBY,...', 'Create fat binary (e.g. --fat 1.8:ruby,1.9:ruby19)') do |value, options|
 			options[:fat] = value
+		end
+
+		add_option('-a', '--add-files DIR', 'Add files only binary gem (e.g. --add-files vendor/app/local )') do |value, options|
+			options[:add_files] << value
 		end
 	end
 
@@ -42,7 +47,7 @@ class Gem::Commands::CompileCommand < Gem::Command
 			fat_commands[ver] = cmd
 		end
 
-		Gem::Compiler.compile(gem, options[:platform], fat_commands)
+		Gem::Compiler.compile(gem, options[:platform], fat_commands, options[:add_files])
 	end
 end
 
